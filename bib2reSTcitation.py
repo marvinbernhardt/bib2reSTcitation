@@ -12,47 +12,42 @@ def displaymatch(match):
 
 
 def bib2rest(input_bibfile, output_txtfile):
-    start_pattern = re.compile(r"^(?: |\t)*\@(?:book|article|incollection|inproceedings)\{(.+), *$")
-    title_pattern = re.compile(r"^(?: |\t)*title[ \t]*=[ \t]*\{(.+)\}(?: |\t)*,(?: |\t)*$")
-    author_pattern = re.compile(r"^(?: |\t)*author[ \t]*=[ \t]*\{(.+)\}(?: |\t)*,(?: |\t)*$")
-    other_info_pattern = re.compile(r"^(?: |\t)*(?:journal|volume|number|year|publisher|pages|organization|booktitle)[ \t]*=[ \t]*\{(.+)\}(?: |\t)*,(?: |\t)*$")
+    fields = ('author', 'title', 'journal', 'year', 'doi')
+    patterns = {field: re.compile(r"^(?: |\t)*" + field + r"[ \t]*=[ \t]*\{(.+)\}(?: |\t)*,(?: |\t)*$", re.IGNORECASE) for field in fields}
+    start_pattern = re.compile(r"^(?: |\t)*\@(book|article|incollection|inproceedings)\{(.+), *$")
     end_pattern = re.compile("^(?: |\t)*}(?: |\t)*$")
-    with open(input_bibfile, 'r') as input_handle:
-        with open(output_txtfile, 'w') as output_handle:
-            in_a_bib_block = False
-            rest_ref_block = ""
-            title = ""
-            author = ""
-            ref = ""
-            output_handle.write(".. _references:\n\n==========\nReferences\n==========\n\n")
-            for line in input_handle:
-                if not in_a_bib_block:
-                    # not in a bib block
-                    if start_pattern.match(line):
-                        matches = start_pattern.match(line)
-                        in_a_bib_block = True
-                        ref = matches.group(1)
-                    else:
-                        pass
+    with open(input_bibfile, 'r') as input_handle, open(output_txtfile, 'w') as output_handle:
+        in_a_bib_block = False
+        ref_data = {}
+        output_handle.write("Bibliography\n============\n\n")
+        for line in input_handle:
+            if not in_a_bib_block:
+                if start_pattern.match(line):
+                    matches = start_pattern.match(line)
+                    in_a_bib_block = True
+                    ref_data = {}
+                    ref_data['type'] = matches.group(1)
+                    ref_data['key'] = matches.group(2)
                 else:
-                    # in a bib block
-                    if end_pattern.match(line):
-                        matches = end_pattern.match(line)
-                        in_a_bib_block = False
-                        rest_ref_block = ".. [" + ref + "]" + " " + author + ", " + title + ", " + other_info
-                        output_handle.write(rest_ref_block+"\n\n")
-                    elif title_pattern.match(line):
-                        matches = title_pattern.match(line)
-                        title = matches.group(1)
-                    elif author_pattern.match(line):
-                        matches = author_pattern.match(line)
-                        author = matches.group(1)
-                    elif other_info_pattern.match(line):
-                        matches = other_info_pattern.match(line)
-                        other_info = matches.group(1)
-                        rest_ref_block = rest_ref_block + ", " + other_info
-                    else:
-                        pass
+                    pass
+            else:
+                # in a bib block
+                if end_pattern.match(line):
+                    in_a_bib_block = False
+                    rest_ref_block = '.. [' + ref_data['key'] + '] '
+                    for f, field in enumerate((field for field in fields
+                                               if field in ref_data)):
+                        if f > 0:
+                            rest_ref_block += ', '
+                        if field == 'doi':
+                            rest_ref_block += 'https://dx.doi.org/'
+                        rest_ref_block += ref_data[field]
+                    output_handle.write(rest_ref_block + "\n")
+                for field in fields:
+                    if patterns[field].match(line):
+                        ref_data[field] = patterns[field].match(line).group(1)
+                else:
+                    pass
 
 
 if __name__ == '__main__':
